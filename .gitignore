@@ -1,0 +1,24 @@
+# Node
+node_modules/
+agent/dist/
+*.log
+
+# Secrets / local env
+.env
+.env.*
+!.env.example
+
+# Terraform — state can contain the HMAC secret & dashboard token; never commit
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.*
+terraform.tfvars
+infra/build/
+crash.log
+
+# Generated at deploy (contains the live API URL)
+dashboard/config.js
+
+# OS
+.DS_Store

@@ -1,0 +1,12 @@
+# Copy to terraform.tfvars and fill in.
+aws_profile     = "challenge"          # the profile you set with `aws configure --profile challenge`
+aws_region      = "us-east-1"
+sender_email    = "you@example.com"    # SES-verified sender
+recipient_email = "you@example.com"    # where the brief lands (same is fine)
+
+# Optional — sensible defaults exist for all of these:
+# bedrock_model_id    = "amazon.nova-lite-v1:0"   # or an inference-profile id for Claude
+# schedule_expression = "cron(0 7 * * ? *)"        # 07:00 daily
+# schedule_timezone   = "UTC"
+# token_ttl_minutes   = 1440
+# checks = { iam = true, network = true, s3 = true, encryption = true }

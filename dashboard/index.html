@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Sentinel · Cloud Security Brief</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">🛡️</span>
+      <div>
+        <div class="title">Sentinel</div>
+        <div class="subtitle">Morning Cloud Security Brief</div>
+      </div>
+    </div>
+    <button id="signout" class="ghost" hidden>Sign out</button>
+  </header>
+
+  <!-- Token gate -->
+  <section id="gate" class="gate" hidden>
+    <div class="gate-card">
+      <h1>Enter access token</h1>
+      <p>This dashboard shows your account's security findings, so it's protected. Paste the token from <code>terraform output -raw dashboard_token</code>.</p>
+      <input id="token" type="password" placeholder="Access token" autocomplete="off" />
+      <button id="unlock">Unlock</button>
+      <p id="gate-error" class="error" hidden></p>
+    </div>
+  </section>
+
+  <!-- Dashboard -->
+  <main id="app" class="app" hidden>
+    <div id="meta" class="meta"></div>
+    <div id="counts" class="counts"></div>
+    <section id="summary" class="card summary"></section>
+    <section id="findings" class="findings"></section>
+    <aside id="history" class="history"></aside>
+  </main>
+
+  <div id="loading" class="loading">Loading…</div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
