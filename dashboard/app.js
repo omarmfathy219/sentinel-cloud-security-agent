@@ -10,14 +10,23 @@
   const fmtTime = (iso) => new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   const fmtDate = (iso) => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 
-  // ---- Tabs ----
+  // ---- Sidebar nav / tabs ----
   const TABS = ["overview", "findings", "runs", "intel"];
+  const TITLES = {
+    overview: ["Overview", "Security posture at a glance"],
+    findings: ["Findings", "Open issues across your account"],
+    runs: ["Agent Runs", "Scheduled scan history"],
+    intel: ["Threat Intel", "Recent exploited vulnerabilities & CVEs"],
+  };
   function activateTab(name) {
-    $$(".tab").forEach((x) => x.classList.toggle("is-active", x.dataset.tab === name));
+    $$(".nav-item").forEach((x) => x.classList.toggle("is-active", x.dataset.tab === name));
     $$(".panel").forEach((p) => p.classList.toggle("is-active", p.dataset.panel === name));
+    const title = document.getElementById("page-title");
+    const sub = document.getElementById("page-sub");
+    if (title && TITLES[name]) { title.textContent = TITLES[name][0]; sub.textContent = TITLES[name][1]; }
     if (name === "intel") loadIntel();
   }
-  $$(".tab").forEach((t) => t.addEventListener("click", () => {
+  $$(".nav-item").forEach((t) => t.addEventListener("click", () => {
     activateTab(t.dataset.tab);
     history.replaceState(null, "", "#" + t.dataset.tab);
   }));
