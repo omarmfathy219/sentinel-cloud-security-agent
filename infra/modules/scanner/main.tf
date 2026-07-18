@@ -71,6 +71,13 @@ data "aws_iam_policy_document" "scanner" {
   }
 
   statement {
+    sid       = "SendToDlq"
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.dlq.arn]
+  }
+
+  statement {
     sid       = "Logs"
     effect    = "Allow"
     actions   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
@@ -139,6 +146,11 @@ data "aws_iam_policy_document" "scheduler_invoke" {
     actions   = ["lambda:InvokeFunction"]
     resources = [aws_lambda_function.scanner.arn]
   }
+  statement {
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.dlq.arn]
+  }
 }
 
 resource "aws_iam_role_policy" "scheduler" {
@@ -160,5 +172,68 @@ resource "aws_scheduler_schedule" "daily_scan" {
   target {
     arn      = aws_lambda_function.scanner.arn
     role_arn = aws_iam_role.scheduler.arn
+
+    # Failed scheduled invocations land in the DLQ instead of vanishing.
+    dead_letter_config {
+      arn = aws_sqs_queue.dlq.arn
+    }
   }
+}
+
+# --- Dead-letter queue for failed scans (scheduler delivery + Lambda async) ---
+resource "aws_sqs_queue" "dlq" {
+  name                      = "${var.name_prefix}-dlq"
+  message_retention_seconds = 1209600 # 14 days
+}
+
+resource "aws_lambda_function_event_invoke_config" "scanner" {
+  function_name          = aws_lambda_function.scanner.function_name
+  maximum_retry_attempts = 1
+
+  destination_config {
+    on_failure {
+      destination = aws_sqs_queue.dlq.arn
+    }
+  }
+}
+
+# --- Failure alerting: SNS topic emailed on scan errors or a non-empty DLQ ---
+resource "aws_sns_topic" "alerts" {
+  name = "${var.name_prefix}-alerts"
+}
+
+resource "aws_sns_topic_subscription" "email" {
+  topic_arn = aws_sns_topic.alerts.arn
+  protocol  = "email"
+  endpoint  = var.recipient_email
+}
+
+resource "aws_cloudwatch_metric_alarm" "scanner_errors" {
+  alarm_name          = "${var.name_prefix}-scanner-errors"
+  alarm_description   = "The daily Sentinel scan raised a Lambda error."
+  namespace           = "AWS/Lambda"
+  metric_name         = "Errors"
+  statistic           = "Sum"
+  period              = 86400
+  evaluation_periods  = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  dimensions          = { FunctionName = aws_lambda_function.scanner.function_name }
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+}
+
+resource "aws_cloudwatch_metric_alarm" "dlq_not_empty" {
+  alarm_name          = "${var.name_prefix}-dlq-not-empty"
+  alarm_description   = "A scan invocation failed and landed in the dead-letter queue."
+  namespace           = "AWS/SQS"
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  statistic           = "Maximum"
+  period              = 300
+  evaluation_periods  = 1
+  threshold           = 0
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+  dimensions          = { QueueName = aws_sqs_queue.dlq.name }
+  alarm_actions       = [aws_sns_topic.alerts.arn]
 }
