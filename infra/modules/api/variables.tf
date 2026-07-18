@@ -1,0 +1,14 @@
+variable "name_prefix" { type = string }
+variable "region" { type = string }
+variable "account_id" { type = string }
+variable "hmac_param_name" { type = string }
+variable "hmac_param_arn" { type = string }
+variable "dashboard_token_param_name" { type = string }
+variable "dashboard_token_param_arn" { type = string }
+variable "briefs_bucket_name" { type = string }
+variable "briefs_bucket_arn" { type = string }
+variable "dashboard_domain" { type = string }
+variable "approval_zip_file" { type = string }
+variable "approval_zip_hash" { type = string }
+variable "briefs_zip_file" { type = string }
+variable "briefs_zip_hash" { type = string }

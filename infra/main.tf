@@ -23,9 +23,10 @@ locals {
   account_id = data.aws_caller_identity.current.account_id
   # Bundled Lambda artifacts produced by `npm run build` in ../agent.
   agent_dist = "${path.module}/../agent/dist"
+  site_dir   = "${path.module}/../dashboard"
 }
 
-# --- Package the two bundled handlers as Lambda zips ---
+# --- Package the three bundled handlers as Lambda zips ---
 data "archive_file" "scanner" {
   type        = "zip"
   source_file = "${local.agent_dist}/scanner.mjs"
@@ -44,32 +45,57 @@ data "archive_file" "briefs" {
   output_path = "${path.module}/build/briefs.zip"
 }
 
-# --- The one secret in the system: the HMAC signing key for approval tokens ---
-resource "random_password" "hmac" {
-  length  = 48
-  special = false
+# ---------------------------------------------------------------------------
+# Module composition. Shared primitives (secrets, briefs bucket, SES) live in
+# the root; each functional area is its own module.
+# ---------------------------------------------------------------------------
+module "api" {
+  source = "./modules/api"
+
+  name_prefix                = var.name_prefix
+  region                     = var.aws_region
+  account_id                 = local.account_id
+  dashboard_domain           = var.dashboard_domain
+  hmac_param_name            = aws_ssm_parameter.hmac_secret.name
+  hmac_param_arn             = aws_ssm_parameter.hmac_secret.arn
+  dashboard_token_param_name = aws_ssm_parameter.dashboard_token.name
+  dashboard_token_param_arn  = aws_ssm_parameter.dashboard_token.arn
+  briefs_bucket_name         = aws_s3_bucket.briefs.bucket
+  briefs_bucket_arn          = aws_s3_bucket.briefs.arn
+  approval_zip_file          = data.archive_file.approval.output_path
+  approval_zip_hash          = data.archive_file.approval.output_base64sha256
+  briefs_zip_file            = data.archive_file.briefs.output_path
+  briefs_zip_hash            = data.archive_file.briefs.output_base64sha256
 }
 
-resource "aws_ssm_parameter" "hmac_secret" {
-  name        = "/${var.name_prefix}/hmac-secret"
-  description = "HMAC key signing Sentinel approval tokens"
-  type        = "SecureString"
-  value       = random_password.hmac.result
+module "scanner" {
+  source = "./modules/scanner"
+
+  name_prefix         = var.name_prefix
+  region              = var.aws_region
+  account_id          = local.account_id
+  bedrock_model_id    = var.bedrock_model_id
+  sender_email        = var.sender_email
+  recipient_email     = var.recipient_email
+  api_base_url        = module.api.invoke_url
+  hmac_param_name     = aws_ssm_parameter.hmac_secret.name
+  hmac_param_arn      = aws_ssm_parameter.hmac_secret.arn
+  briefs_bucket_name  = aws_s3_bucket.briefs.bucket
+  briefs_bucket_arn   = aws_s3_bucket.briefs.arn
+  token_ttl_minutes   = var.token_ttl_minutes
+  checks              = var.checks
+  schedule_expression = var.schedule_expression
+  schedule_timezone   = var.schedule_timezone
+  zip_file            = data.archive_file.scanner.output_path
+  zip_hash            = data.archive_file.scanner.output_base64sha256
 }
 
-# --- Single-use guard for approval tokens ---
-resource "aws_dynamodb_table" "nonce" {
-  name         = "${var.name_prefix}-applied-fixes"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "finding_id"
+module "dashboard" {
+  source = "./modules/dashboard"
 
-  attribute {
-    name = "finding_id"
-    type = "S"
-  }
-
-  ttl {
-    attribute_name = "expires_at"
-    enabled        = true
-  }
+  name_prefix      = var.name_prefix
+  account_id       = local.account_id
+  dashboard_domain = var.dashboard_domain
+  api_invoke_url   = module.api.invoke_url
+  site_dir         = local.site_dir
 }

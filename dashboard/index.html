@@ -3,8 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="robots" content="noindex, nofollow" />
-  <title>Sentinel · Cloud Security Brief</title>
+  <title>Sentinel · Cloud Security Platform</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -13,35 +12,93 @@
       <span class="logo">🛡️</span>
       <div>
         <div class="title">Sentinel</div>
-        <div class="subtitle">Morning Cloud Security Brief</div>
+        <div class="subtitle">Cloud Security Platform</div>
       </div>
     </div>
-    <button id="signout" class="ghost" hidden>Sign out</button>
   </header>
 
-  <!-- Token gate -->
-  <section id="gate" class="gate" hidden>
-    <div class="gate-card">
-      <h1>Enter access token</h1>
-      <p>This dashboard shows your account's security findings, so it's protected. Paste the token from <code>terraform output -raw dashboard_token</code>.</p>
-      <input id="token" type="password" placeholder="Access token" autocomplete="off" />
-      <button id="unlock">Unlock</button>
-      <p id="gate-error" class="error" hidden></p>
-    </div>
-  </section>
+  <nav class="tabs" role="tablist">
+    <button class="tab is-active" data-tab="overview" role="tab">Overview</button>
+    <button class="tab" data-tab="findings" role="tab">Findings</button>
+    <button class="tab" data-tab="runs" role="tab">Agent Runs</button>
+    <button class="tab" data-tab="intel" role="tab">Threat Intel</button>
+  </nav>
 
-  <!-- Dashboard -->
-  <main id="app" class="app" hidden>
-    <div id="meta" class="meta"></div>
-    <div id="counts" class="counts"></div>
-    <section id="summary" class="card summary"></section>
-    <section id="findings" class="findings"></section>
-    <aside id="history" class="history"></aside>
+  <main class="content">
+    <!-- OVERVIEW -->
+    <section class="panel is-active" data-panel="overview">
+      <div class="stat-row" id="stat-row"></div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head">
+            <h2>Issues detected over time</h2>
+            <span class="card-sub">Last 30 daily scans</span>
+          </div>
+          <div id="chart-trend" class="chart"></div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <h2>By severity</h2>
+            <span class="card-sub">Current open findings</span>
+          </div>
+          <div id="chart-severity" class="chart"></div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h2>By category</h2></div>
+          <div id="chart-category" class="chart"></div>
+        </div>
+        <div class="card" id="lastrun-card"></div>
+      </div>
+    </section>
+
+    <!-- FINDINGS -->
+    <section class="panel" data-panel="findings">
+      <div class="filters">
+        <div class="chips" id="sev-filters"></div>
+        <div class="filters-right">
+          <select id="cat-filter" class="select"><option value="">All categories</option></select>
+          <input id="search" class="search" type="search" placeholder="Search findings…" />
+        </div>
+      </div>
+      <div id="findings-list" class="findings-list"></div>
+      <div id="findings-empty" class="empty" hidden>No findings match your filters.</div>
+    </section>
+
+    <!-- AGENT RUNS -->
+    <section class="panel" data-panel="runs">
+      <div class="card">
+        <div class="card-head">
+          <h2>Scheduled scan history</h2>
+          <span class="card-sub">EventBridge Scheduler · daily 07:00 UTC</span>
+        </div>
+        <div class="table-wrap">
+          <table class="table" id="runs-table">
+            <thead><tr><th>Run time</th><th>Status</th><th>Findings</th><th>Duration</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- THREAT INTEL -->
+    <section class="panel" data-panel="intel">
+      <div class="card">
+        <div class="card-head">
+          <h2>Threat intelligence</h2>
+          <span class="card-sub" id="intel-source">Loading feed…</span>
+        </div>
+        <div id="intel-list" class="intel-list"></div>
+      </div>
+    </section>
   </main>
 
-  <div id="loading" class="loading">Loading…</div>
+  <footer class="foot">
+    Sentinel runs unattended on AWS (EventBridge · Lambda · Bedrock · SES). This dashboard shows sample data; real audits are delivered privately by email.
+  </footer>
 
-  <script src="config.js"></script>
+  <script src="data.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

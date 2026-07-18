@@ -1,7 +1,5 @@
-# ACM cert for the dashboard domain. CloudFront requires certs in us-east-1,
-# which is where this provider is pinned. DNS validation — because omarfathy.dev
-# is managed externally, Terraform emits the validation record (see outputs) for
-# you to add at your DNS provider; validation then completes on the next apply.
+# Static dashboard: private S3 bucket served through CloudFront over the custom
+# domain, with an ACM cert (DNS-validated externally).
 resource "aws_acm_certificate" "dashboard" {
   domain_name       = var.dashboard_domain
   validation_method = "DNS"
@@ -15,7 +13,18 @@ resource "aws_acm_certificate_validation" "dashboard" {
   certificate_arn = aws_acm_certificate.dashboard.arn
 }
 
-# --- CloudFront serves the private S3 site bucket via Origin Access Control ---
+resource "aws_s3_bucket" "site" {
+  bucket = "${var.name_prefix}-dashboard-${var.account_id}"
+}
+
+resource "aws_s3_bucket_public_access_block" "site" {
+  bucket                  = aws_s3_bucket.site.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
 resource "aws_cloudfront_origin_access_control" "site" {
   name                              = "${var.name_prefix}-site-oac"
   origin_access_control_origin_type = "s3"
@@ -32,6 +41,7 @@ resource "aws_cloudfront_distribution" "dashboard" {
   default_root_object = "index.html"
   aliases             = [var.dashboard_domain]
   comment             = "Sentinel dashboard"
+  price_class         = "PriceClass_100"
 
   origin {
     domain_name              = aws_s3_bucket.site.bucket_regional_domain_name
@@ -59,11 +69,8 @@ resource "aws_cloudfront_distribution" "dashboard" {
       restriction_type = "none"
     }
   }
-
-  price_class = "PriceClass_100"
 }
 
-# Allow only this distribution to read the site bucket.
 data "aws_iam_policy_document" "site_bucket" {
   statement {
     actions   = ["s3:GetObject"]
@@ -85,13 +92,12 @@ resource "aws_s3_bucket_policy" "site" {
   policy = data.aws_iam_policy_document.site_bucket.json
 }
 
-# --- Upload the static site + a generated config.js pointing at the API ---
 locals {
-  site_dir = "${path.module}/../dashboard"
   site_files = {
     "index.html" = "text/html"
     "styles.css" = "text/css"
     "app.js"     = "application/javascript"
+    "data.js"    = "application/javascript"
   }
 }
 
@@ -99,15 +105,20 @@ resource "aws_s3_object" "site" {
   for_each     = local.site_files
   bucket       = aws_s3_bucket.site.id
   key          = each.key
-  source       = "${local.site_dir}/${each.key}"
-  etag         = filemd5("${local.site_dir}/${each.key}")
+  source       = "${var.site_dir}/${each.key}"
+  etag         = filemd5("${var.site_dir}/${each.key}")
   content_type = each.value
+}
+
+locals {
+  config_js = "window.SENTINEL_CONFIG = { apiBaseUrl: \"${var.api_invoke_url}\" };\n"
 }
 
 resource "aws_s3_object" "site_config" {
   bucket       = aws_s3_bucket.site.id
   key          = "config.js"
-  content      = "window.SENTINEL_CONFIG = { apiBaseUrl: \"${aws_apigatewayv2_stage.approval.invoke_url}\" };\n"
+  content      = local.config_js
   content_type = "application/javascript"
-  etag         = md5("${aws_apigatewayv2_stage.approval.invoke_url}")
+  # Hash the content (not the URL) so drift detection matches S3's own ETag.
+  etag = md5(local.config_js)
 }
